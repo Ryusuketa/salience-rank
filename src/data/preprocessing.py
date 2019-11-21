@@ -6,8 +6,8 @@ from gensim.models import LdaModel
 from gensim.corpora.dictionary import Dictionary
 
 
-def get_terms_included_in_corpus(corpus: List[List[str]]) -> Set[str]:
-    return set(itertools.chain.from_iterable(corpus))
+def get_terms_included_in_corpus(corpus: List[List[str]]) -> List[str]:
+    return list(set(itertools.chain.from_iterable(corpus)))
 
 
 class WordProbabilityModel(object):
@@ -37,22 +37,32 @@ class TopicSpecifityModel(object):
         self._max_specifity = np.nan
         self._topic_probability = dict()
         self._term_probability = dict()
+        self._topic_specifity = dict()
 
     def fit(self, corpus: List[List[str]]):
         terms = get_terms_included_in_corpus(corpus)
-        return self
+        self._topic_probability = self._calculate_topic_probability(terms)
+        self._topic_specifity = dict(zip(range(len(terms)),
+                                         list(map(lambda index: self._calculate_topic_specifity_given_word(terms[index]))), range(len(terms))))
 
     def predict(self, term: Union[str, List[str]]) -> float:
-        pass
+        if type(term) == str:
+            return self._term_probability.get(term)
+        elif type(term) == list:
+            return [self._term_probability.get(t) for t in term]
+        else:
+            raise TypeError("Input valiable type error. `str` or `list` must be input.")
 
-    def _calculate_topic_probability_given_word(self, term: str) -> float:
-        def calculate_kl_divegence(topic_prob_given_term: List[float], topic_prob: List[float]) -> float:
-            return sum(map(lambda t_w, t: t_w * np.log(t_w / t), topic_prob_given_term, topic_prob))
+    def _calculate_topic_specifity_given_word(self, term: str) -> float:
         topic_prob_given_term = dict(self._lda_model.get_term_topics(term))
         topic_prob_given_term = [topic_prob_given_term[i] for i in range(len(topic_prob_given_term))]
         topic_prob = [self._topic_probability[i] for i in range(len(self._topic_probability))]
 
-        return calculate_kl_divegence(topic_prob_given_term, topic_prob)
+        return self.calculate_kl_divergence(topic_prob_given_term, topic_prob)
+
+    @staticmethod
+    def calculate_kl_divergence(topic_prob_given_term: List[float], topic_prob: List[float]) -> float:
+        return sum(map(lambda t_w, t: t_w * np.log(t_w / t), topic_prob_given_term, topic_prob))
 
     def _calculate_topic_probability(self, terms: List[str]) -> Dict[int, float]:
         def calculate_merginal_probability(topic_probabilities_given_terms: Dict[int, [List[Tuple[int, float]]]],
