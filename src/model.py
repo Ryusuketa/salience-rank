@@ -18,6 +18,7 @@ class WordProbabilityModel(object):
     def fit(self, corpus: List[List[str]]) -> float:
         terms = get_terms_included_in_corpus(corpus)
         token2id = self._dictionary.token2id
+        terms = set(terms) & set(token2id.keys())
         cfs = self._dictionary.cfs
         self._term_probability = {token2id[term]: cfs[token2id[term]] / self._dictionary.num_pos for term in terms}
 
@@ -34,7 +35,6 @@ class TopicSpecifityModel(object):
     def __init__(self, lda_model: LdaModel, dictionary: Dictionary) -> None:
         self._lda_model = lda_model
         self._dictionary = dictionary
-        self._max_specifity = np.nan
         self._topic_probability = dict()
         self._term_probability = dict()
         self._topic_specifity = dict()
@@ -74,6 +74,15 @@ class TopicSpecifityModel(object):
         topic_probabilities = map(lambda topic_id: calculate_merginal_probability(topic_probabilities_given_terms, self._term_probability, topic_id),
                                   range(len(self._lda_model.n_topic)))
         return dict(zip(range(self._lda_model.n_topic), topic_probabilities))
+
+    @staticmethod
+    def _min_max_scaling(topic_specifity: Dict[int, float]) -> Dict[int, float]:
+        def _scale(v: float, max_value: float, min_value: float) -> float:
+            return (v - min_value) / (max_value - min_value)
+        max_value = max(topic_specifity)
+        min_value = min(topic_specifity)
+
+        return dict([(key, _scale(value, max_value, min_value)) for key, value in topic_specifity.items()])
 
 
 class SalienceRankGraph(object):
